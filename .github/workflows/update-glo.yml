@@ -49,18 +49,8 @@ jobs:
         if: failure()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh issue create \
-            --title "GLO update failed – $(date +'%Y-%m-%d')" \
-            --body "## GLO Lottery Update Failed
-
-The scheduled update script failed on **$(date +'%Y-%m-%d %H:%M UTC')**.
-
-**Possible causes:**
-- GLO API response structure changed
-- Network/HTTP error reaching the API
-
-**Workflow run (logs):** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-Please check the logs and update \`update_glo.py\` if the API format has changed." \
-            --label "bug"
+          DATE=$(date +'%Y-%m-%d')
+          BODY=$(printf 'GLO update script failed on %s.\n\nPossible causes:\n- GLO API response structure changed\n- Network/HTTP error reaching the API\n\nWorkflow run (logs): %s\n\nPlease check the logs and update update_glo.py if the API format has changed.' "$DATE" "$RUN_URL")
+          gh issue create --title "GLO update failed - ${DATE}" --body "$BODY" --label "bug"
