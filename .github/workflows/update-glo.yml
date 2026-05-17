@@ -1,0 +1,66 @@
+name: Update GLO Lottery Data
+
+on:
+  schedule:
+    # Thai lottery draws on the 1st and 16th of each month at ~14:30 ICT (UTC+7).
+    # Run at 10:59 UTC (17:59 ICT) on draw days, plus the day after as fallback
+    # in case the draw is moved due to a public holiday.
+    - cron: '59 10 1 * *'   # 1st of every month
+    - cron: '59 10 2 * *'   # 2nd (fallback)
+    - cron: '59 10 16 * *'  # 16th of every month
+    - cron: '59 10 17 * *'  # 17th (fallback)
+  workflow_dispatch:        # allow manual trigger
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run update script
+        run: python update_glo.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add glo.csv
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Update glo.csv with latest lottery results"
+            git push
+          fi
+
+      - name: Open issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue create \
+            --title "GLO update failed – $(date +'%Y-%m-%d')" \
+            --body "## GLO Lottery Update Failed
+
+The scheduled update script failed on **$(date +'%Y-%m-%d %H:%M UTC')**.
+
+**Possible causes:**
+- GLO API response structure changed
+- Network/HTTP error reaching the API
+
+**Workflow run (logs):** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+Please check the logs and update \`update_glo.py\` if the API format has changed." \
+            --label "bug"
